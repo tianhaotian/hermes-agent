@@ -400,7 +400,7 @@ export function mergeRepoWorktreeGroups(
 const NO_OWNERS: ReadonlyMap<string, string> = new Map()
 
 /** True when `target` equals `folder` or is nested under it (segment-wise). */
-function isPathUnder(folder: string, target: string): boolean {
+export function isPathUnder(folder: string, target: string): boolean {
   const f = comparisonSegments(folder)
   const t = comparisonSegments(target)
 

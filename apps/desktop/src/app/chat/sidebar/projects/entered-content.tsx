@@ -18,6 +18,7 @@ import { SidebarRowStack } from '../chrome'
 import { PROJECT_SESSION_PAGE, useRevealedRows, useWorkspaceNodeOpen } from './model'
 import { SidebarWorkspaceGroup } from './workspace-group'
 import {
+  isPathUnder,
   mergeRepoWorktreeGroups,
   overlayRepoLanes,
   type SidebarProjectTree,
@@ -66,6 +67,7 @@ export function EnteredProjectContent({
           discoveredWorktrees={repo.path ? repoWorktrees?.[repo.path] : undefined}
           key={repo.id}
           liveSessions={liveSessions}
+          newSessionPath={repo.path && project.path && isPathUnder(repo.path, project.path) ? project.path : repo.path}
           onNewSession={onNewSession}
           onNewSessionSplit={onNewSessionSplit}
           removedSessionIds={removedSessionIds}
@@ -101,6 +103,7 @@ function HomeSessions({
 
 function RepoFlatSection({
   repo,
+  newSessionPath,
   showHeader,
   renderRows,
   onNewSession,
@@ -110,6 +113,7 @@ function RepoFlatSection({
   removedSessionIds
 }: {
   repo: SidebarWorkspaceTree
+  newSessionPath: null | string
   showHeader: boolean
   renderRows: (sessions: SessionInfo[]) => React.ReactNode
   onNewSession?: (path: null | string) => void
@@ -192,6 +196,7 @@ function RepoFlatSection({
         <SidebarWorkspaceGroup
           group={group}
           key={group.id}
+          newSessionPath={group.isMain ? newSessionPath : group.path}
           // The kanban bucket is read-only: it aggregates many task worktrees, so
           // "new session here" and "remove worktree" have no single target.
           onNewSession={group.isKanban ? undefined : onNewSession}
@@ -273,7 +278,7 @@ function RepoFlatSection({
                 // Reveal the repo the new session targets if the user had it
                 // collapsed — the session lands in one of its lanes.
                 setWorkspaceNodeOpen(repo.id, true)
-                onNewSession(repo.path)
+                onNewSession(newSessionPath)
               }}
               onPointerDown={
                 onNewSessionSplit
@@ -284,11 +289,11 @@ function RepoFlatSection({
                           onNewSessionSplit(placement.dir, {
                             anchor: placement.anchor,
                             before: placement.before,
-                            cwd: repo.path
+                            cwd: newSessionPath
                           })
                         },
                         event,
-                        { cwd: repo.path, label: s.newSessionIn(repo.label) }
+                        { cwd: newSessionPath, label: s.newSessionIn(repo.label) }
                       )
                     }
                   : undefined

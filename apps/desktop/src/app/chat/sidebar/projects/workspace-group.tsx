@@ -31,6 +31,8 @@ import {
 interface SidebarWorkspaceGroupProps {
   group: SidebarSessionGroup
   renderRows: (sessions: SessionInfo[]) => React.ReactNode
+  // An entered project's primary folder may be inside the Git checkout.
+  newSessionPath?: null | string
   onNewSession?: (path: null | string) => void
   onNewSessionSplit?: NewSessionSplitHandler
   // When set (linked worktree rows), shows a remove affordance that runs a real
@@ -41,6 +43,7 @@ interface SidebarWorkspaceGroupProps {
 export function SidebarWorkspaceGroup({
   group,
   renderRows,
+  newSessionPath = group.path,
   onNewSession,
   onNewSessionSplit,
   onRemove
@@ -137,7 +140,7 @@ export function SidebarWorkspaceGroup({
       return
     }
 
-    onNewSession(group.path)
+    onNewSession(newSessionPath)
   }
 
   const handleNewSessionSplit = async (placement: NewSessionPlacement) => {
@@ -148,7 +151,7 @@ export function SidebarWorkspaceGroup({
     onNewSessionSplit(placement.dir, {
       anchor: placement.anchor,
       before: placement.before,
-      cwd: group.path,
+      cwd: newSessionPath,
       profile: isProfileGroup ? group.id : placement.profile
     })
   }
@@ -168,7 +171,7 @@ export function SidebarWorkspaceGroup({
               // it's dropped. A sub-threshold release falls through to the
               // onClick above.
               startNewSessionDrag(placement => void handleNewSessionSplit(placement), event, {
-                cwd: group.path,
+                cwd: newSessionPath,
                 label: s.newSessionIn(group.label),
                 profile: isProfileGroup ? group.id : undefined
               })

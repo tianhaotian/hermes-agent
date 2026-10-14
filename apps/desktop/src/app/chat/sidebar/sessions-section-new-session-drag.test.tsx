@@ -288,6 +288,96 @@ describe('entered project reaches every session', () => {
 })
 
 describe('project-associated new-session drag sources', () => {
+  it.each(['click', 'drag'] as const)(
+    'keeps %s-created sessions in the project subfolder without redirecting other checkouts',
+    async gesture => {
+      workspaceOpen.value = true
+      const onNewSession = vi.fn()
+      const onNewSessionSplit = vi.fn()
+      const primaryPath = '/work/customer/engagement'
+
+      // An unborn repository has no listed branches. A populated repository
+      // still switches branches at its Git root, not at the session's cwd.
+      if (gesture === 'drag') {
+        vi.mocked(listRepoBranches).mockResolvedValue([
+          { checkedOut: false, isDefault: true, isRemote: false, name: 'master', worktreePath: null },
+          { checkedOut: false, isDefault: false, isRemote: false, name: 'dev', worktreePath: null }
+        ])
+      }
+
+      render(
+        <SidebarSessionsSection
+          {...baseProps()}
+          onNewSessionInWorkspace={onNewSession}
+          onNewSessionSplit={onNewSessionSplit}
+          projectContent={project({
+            path: primaryPath,
+            repos: [
+              {
+                id: '/work/customer',
+                label: 'Customer',
+                path: '/work/customer',
+                sessionCount: 0,
+                groups: [
+                  group({ id: '/work/customer::master', isMain: true, label: 'master', path: '/work/customer' }),
+                  group({ id: '/work/customer-feature', path: '/work/customer-feature' })
+                ]
+              },
+              {
+                id: '/work/customer-extra',
+                label: 'Other',
+                path: '/work/customer-extra',
+                sessionCount: 0,
+                groups: [
+                  group({ id: '/work/customer-extra::dev', isMain: true, label: 'dev', path: '/work/customer-extra' })
+                ]
+              }
+            ]
+          })}
+        />
+      )
+
+      for (const [label, cwd] of [
+        ['master', primaryPath],
+        ['Customer', primaryPath],
+        ['feature', '/work/customer-feature'],
+        ['dev', '/work/customer-extra'],
+        ['Other', '/work/customer-extra']
+      ]) {
+        const button = screen.getByRole('button', { name: `New session in ${label}` })
+
+        if (gesture === 'click') {
+          onNewSession.mockClear()
+          fireEvent.click(button)
+          await waitFor(() => expect(onNewSession).toHaveBeenCalledWith(cwd))
+        } else {
+          onNewSessionSplit.mockClear()
+          startNewSessionDrag.mockClear()
+          fireEvent.pointerDown(button, { button: 0 })
+          expect(startNewSessionDrag).toHaveBeenCalledWith(
+            expect.any(Function),
+            expect.anything(),
+            expect.objectContaining({ cwd })
+          )
+          commitLatestDrag()
+          await waitFor(() => expect(onNewSessionSplit).toHaveBeenCalledWith('right', expect.objectContaining({ cwd })))
+        }
+      }
+
+      expect(listRepoBranches).toHaveBeenCalledWith('/work/customer')
+      expect(listRepoBranches).toHaveBeenCalledWith('/work/customer-extra')
+
+      if (gesture === 'drag') {
+        expect(vi.mocked(switchBranchInRepo).mock.calls).toEqual([
+          ['/work/customer', 'master'],
+          ['/work/customer-extra', 'dev']
+        ])
+      } else {
+        expect(switchBranchInRepo).not.toHaveBeenCalled()
+      }
+    }
+  )
+
   it('drags from the project overview + with the project cwd', () => {
     const onNewSessionSplit = vi.fn()
 
