@@ -960,15 +960,14 @@ export const $profileScope = computed([$showAllProfiles, $activeGatewayProfile],
   showAll ? ALL_PROFILES : normalizeProfileKey(gateway)
 )
 
-// Switch the active context to `name`: leave "All profiles" mode, point new
-// chats at it, and swap the single live gateway onto its backend (which moves
-// $activeGatewayProfile → name, so $profileScope follows).
+// Switch the active context and new-chat target without changing the user's
+// sidebar scope preference. Concrete scope follows the live gateway; the
+// opt-in "All profiles" view stays unified across profile picks.
 export function selectProfile(name: string): void {
   const target = normalizeProfileKey(name)
-  // Switching profiles (or coming back from the all-profiles browse view) starts
-  // fresh; re-tapping the profile you're already in leaves your session be.
-  const switching = $showAllProfiles.get() || target !== normalizeProfileKey($activeGatewayProfile.get())
-  $showAllProfiles.set(false)
+  // Switching profiles starts fresh; re-tapping the active profile leaves
+  // the current session in place, including in the unified sidebar view.
+  const switching = target !== normalizeProfileKey($activeGatewayProfile.get())
   $newChatProfile.set(target)
   $newChatRoute.set(null)
   // Clearing the agent route must NOT discard the registry identity: the pick
@@ -1079,7 +1078,7 @@ export function pinNewChatProfile(name: string): string {
 }
 
 // Start a fresh session in `name` WITHOUT collapsing the "All profiles" browse
-// view. Unlike selectProfile, it leaves $showAllProfiles untouched, so the
+// view. Like selectProfile, it leaves $showAllProfiles untouched, so the
 // unified sidebar stays put — used by the per-profile "+" in the all-profiles
 // session list, where switching scope would throw away the browse state the user
 // is in. Points new chats at the profile and opens its backend so the next
@@ -1177,7 +1176,7 @@ export function cycleProfile(direction: 1 | -1): void {
     return
   }
 
-  const current = $showAllProfiles.get() ? -1 : keys.indexOf(normalizeProfileKey($activeGatewayProfile.get()))
+  const current = keys.indexOf(normalizeProfileKey($activeGatewayProfile.get()))
   const start = current < 0 ? (direction === 1 ? -1 : 0) : current
   const next = (start + direction + keys.length) % keys.length
 

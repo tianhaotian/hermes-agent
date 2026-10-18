@@ -18,10 +18,16 @@ import {
 } from '@/store/gateway'
 import {
   $activeGatewayProfile,
+  $freshSessionRequest,
   $newChatConnectionId,
   $newChatProfile,
   $newChatRoute,
+  $profiles,
+  $profileScope,
+  $showAllProfiles,
+  ALL_PROFILES,
   captureNewChatSource,
+  cycleProfile,
   ensureGatewayAgent,
   newSessionInProfile,
   pinLegacyNewChatProfile,
@@ -404,6 +410,8 @@ describe('profile rail: a fresh Omar chat keeps its exact registry owner across 
     setAwaitingResponse(false)
     $newChatProfile.set(null)
     $newChatRoute.set(null)
+    $showAllProfiles.set(false)
+    $profiles.set([])
     captureNewChatSource(null)
     $defaultProfileRoute.set(null)
     _resetSessionOwnerHintsForTests({ storage: true })
@@ -421,6 +429,7 @@ describe('profile rail: a fresh Omar chat keeps its exact registry owner across 
     captureNewChatSource(null)
     $defaultProfileRoute.set(null)
     $activeGatewayProfile.set('default')
+    $showAllProfiles.set(false)
     vi.clearAllMocks()
     delete (window as unknown as { hermesDesktop?: unknown }).hermesDesktop
   })
@@ -494,17 +503,52 @@ describe('profile rail: a fresh Omar chat keeps its exact registry owner across 
 
   const calls = (socket: MockGateway) => socket.request.mock.calls.map(call => call[0] as string)
 
-  it('an ordinary profile pick supersedes the legacy default pin on the active registry source', async () => {
+  it.each([false, true])('a profile pick preserves All profiles=%s and selects the new chat owner', async showAll => {
     setPrimaryGateway(makePrimary() as never, 'default')
     await ensureGatewayAgent(SOURCE_ID, 'default')
     pinLegacyNewChatProfile('omar')
     expect(resolveNewChatOwnerRoute()).toBeNull()
+    $showAllProfiles.set(showAll)
 
     selectProfile('omar')
     expect(resolveNewChatOwnerRoute()).toEqual({ connectionId: SOURCE_ID, profile: 'omar' })
     await waitFor(() => expect(activeGatewayProfileKey()).toBe('omar'))
     expect(activeGatewayConnectionId()).toBe(SOURCE_ID)
+    expect($newChatProfile.get()).toBe('omar')
+    expect($profileScope.get()).toBe(showAll ? ALL_PROFILES : 'omar')
+    expect(window.localStorage.getItem('hermes.desktop.showAllProfiles')).toBe(String(showAll))
     expect(window.hermesDesktop.getConnection).not.toHaveBeenCalledWith('omar')
+    const freshRequests = $freshSessionRequest.get()
+    selectProfile('omar')
+    expect($freshSessionRequest.get()).toBe(freshRequests)
+    expect($profileScope.get()).toBe(showAll ? ALL_PROFILES : 'omar')
+  })
+
+  it.each([
+    { direction: 1 as const, expected: ['omar', 'research', 'default'] },
+    { direction: -1 as const, expected: ['research', 'omar', 'default'] }
+  ])('cycles profiles in direction $direction without leaving the unified view', async ({ direction, expected }) => {
+    setPrimaryGateway(makePrimary() as never, 'default')
+    await ensureGatewayAgent(SOURCE_ID, 'default')
+    $profiles.set(
+      ['default', 'omar', 'research'].map(name => ({
+        has_env: false,
+        is_default: name === 'default',
+        model: null,
+        name,
+        path: `/tmp/hermes/${name}`,
+        provider: null,
+        skill_count: 0
+      }))
+    )
+    $showAllProfiles.set(true)
+
+    for (const target of expected) {
+      cycleProfile(direction)
+      await waitFor(() => expect(activeGatewayProfileKey()).toBe(target))
+      expect($profileScope.get()).toBe(ALL_PROFILES)
+      expect(resolveNewChatOwnerRoute()).toEqual({ connectionId: SOURCE_ID, profile: target })
+    }
   })
 
   it.each([
@@ -654,7 +698,9 @@ describe('profile rail: a fresh Omar chat keeps its exact registry owner across 
   }
 
   it('session.create and both prompt.submit calls ride the SAME conn:homelab::omar socket', async () => {
+    $showAllProfiles.set(true)
     const { ambientRequest, handle, omarSocket, primary } = await bootProfileRailOmar()
+    expect($profileScope.get()).toBe(ALL_PROFILES)
 
     // Turn one: no session yet → createBackendSessionForSend → prompt.submit.
     await expect(handle.submitText('first prompt')).resolves.toBe(true)
