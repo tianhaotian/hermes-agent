@@ -69,9 +69,10 @@ def probe(base):
                         author={'id': 'bot:legacy', 'name': 'Legacy', 'is_bot': True}))
             dm = home / 'local-dm.txt'
             dm.write_text('[Message from @local-sender] LOCAL_DM_ONCE')
-            local = await asyncio.to_thread(_admit_live_dm, home, str(dm))
+            # The synchronous message_agent tool can run inside a CLI event loop (#141087).
+            local = _admit_live_dm(home, str(dm))
             assert local is not None and local['status'] == 'queued', local
-            same = await asyncio.to_thread(_admit_live_dm, home, str(dm))
+            same = _admit_live_dm(home, str(dm))
             assert same['admission_id'] == local['admission_id'], same
             with _locked(home) as mailbox:
                 migrated = _read(mailbox / ('b' * 32 + '.json'))

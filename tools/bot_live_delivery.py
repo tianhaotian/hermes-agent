@@ -95,7 +95,18 @@ def _authority_rpc(home, method, params):
             async with GatewayClient(ws) as client:
                 return await client.rpc(method, **params)
 
-    return asyncio.run(request())
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(request())
+
+    # Synchronous tools can be called from a CLI event loop. Keep this RPC on
+    # its own loop, carrying the caller's profile/secret scope into the worker.
+    from concurrent.futures import ThreadPoolExecutor
+    from agent.memory_provider import ctx_bound
+
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="bot-authority-rpc") as pool:
+        return pool.submit(ctx_bound(asyncio.run), request()).result()
 
 
 def _owner(home: Path | str, owner: dict[str, Any]) -> dict[str, str]:
