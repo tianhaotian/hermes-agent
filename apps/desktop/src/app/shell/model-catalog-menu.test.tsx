@@ -313,6 +313,55 @@ function renderMenu(current: Partial<ModelMenuController['current']> = {}) {
   return select
 }
 
+describe('model menu opening scroll', () => {
+  it.each([
+    { favorite: null, plan: false, followsCurrent: true },
+    { favorite: 'gemini-3.1-pro', plan: false, followsCurrent: false },
+    { favorite: 'retired-model', plan: false, followsCurrent: true },
+    { favorite: null, plan: true, followsCurrent: false },
+    { favorite: 'gemini-3.1-pro', plan: true, followsCurrent: false }
+  ])('opens with favorite=$favorite, plan=$plan', async ({ favorite, plan, followsCurrent }) => {
+    if (favorite) {
+      toggleFavoriteModel('google', favorite)
+    }
+
+    getGlobalModelOptions.mockResolvedValue({
+      providers: [
+        {
+          models: ['gemini-3.1-pro', 'gemini-2.5-flash'],
+          name: 'Google',
+          slug: 'google',
+          ...(plan ? { plan_usage: { gauges: [], kind: 'usage_window' } } : {})
+        }
+      ]
+    })
+    renderMenu({ model: 'gemini-2.5-flash', provider: 'google' })
+
+    await screen.findByText('Gemini 2.5')
+    expect(vi.mocked(Element.prototype.scrollIntoView).mock.calls.length > 0).toBe(followsCurrent)
+  })
+
+  it('follows deliberate keyboard navigation and search even with favorites', async () => {
+    toggleFavoriteModel('google', 'gemini-3.1-pro')
+    const select = renderMenu({ model: 'gemini-2.5-flash', provider: 'google' })
+
+    await screen.findByText('Favorites')
+    expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled()
+
+    const search = screen.getByRole('textbox', { name: 'Search models' })
+    fireEvent.keyDown(search, { key: 'ArrowUp' })
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+
+    vi.mocked(Element.prototype.scrollIntoView).mockClear()
+    fireEvent.change(search, { target: { value: 'gemini-2.5' } })
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+
+    fireEvent.change(search, { target: { value: 'gemini-3.1' } })
+    fireEvent.keyDown(search, { key: 'Enter' })
+    await waitFor(() => expect(select).toHaveBeenCalledWith('gemini-3.1-pro', 'google'))
+  })
+})
+
 // Curation is ONE global preference, so it belongs to the catalog rather than
 // to whichever surface mounted it. If a host had to opt in, the composer and
 // the kanban board would end up disagreeing about what "my models" means —
