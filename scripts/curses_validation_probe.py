@@ -28,14 +28,21 @@ config.write_text("plugins:\n  enabled: []\n  disabled: []\n", encoding="utf-8")
 env = dict(os.environ, HERMES_HOME=str(HOME), TERM="xterm-256color", PYTHONUNBUFFERED="1")
 env["PYTHONPATH"] = str(ROOT)
 code = """
-import json
-from hermes_cli import plugins_cmd as pc
-from hermes_cli.plugins_cmd_toggle import cmd_toggle
-keys = [entry[5] for entry in pc._discover_all_plugins()]
-target = keys.index('curses-integration-probe')
-total = len(keys) + len(pc._provider_categories())
-print('PROBE ' + json.dumps({'target': target, 'total': total}), flush=True)
-cmd_toggle()
+import json, sys
+if sys.argv[1].startswith('shared-'):
+    from hermes_cli.curses_ui import curses_checklist
+    print('PROBE ' + json.dumps({'target': 0, 'total': 2}), flush=True)
+    initial = {1} if sys.argv[1] == 'shared-cancel' else set()
+    result = curses_checklist('Shared checklist probe', ['first', 'second'], initial)
+    assert result == {1}, result
+else:
+    from hermes_cli import plugins_cmd as pc
+    from hermes_cli.plugins_cmd_toggle import cmd_toggle
+    keys = [entry[5] for entry in pc._discover_all_plugins()]
+    target = keys.index('curses-integration-probe')
+    total = len(keys) + len(pc._provider_categories())
+    print('PROBE ' + json.dumps({'target': target, 'total': total}), flush=True)
+    cmd_toggle()
 print('PROBE_DONE', flush=True)
 """
 CHILD = OUT / "picker_child.py"
@@ -69,7 +76,7 @@ class PosixTerminal:
 
 
 def drive(name, toggle):
-    args = [sys.executable, str(CHILD)]
+    args = [sys.executable, str(CHILD), name]
     if os.name == "nt":
         from winpty import PtyProcess
         child = PtyProcess.spawn(subprocess.list2cmdline(args), cwd=str(ROOT), env=env,
@@ -113,12 +120,17 @@ def drive(name, toggle):
         assert "Toggle # (or Enter to confirm):" not in observed
         start = observed.index("PROBE ") + len("PROBE ")
         info, _ = json.JSONDecoder().raw_decode(observed[start:])
-        if toggle:
+        if name == "shared-confirm":
+            send("\x1b[B \r")
+        elif name == "shared-cancel":
+            send(" \x1b")
+        elif toggle:
             up = info["total"] - info["target"]
             send("k" * up if up < info["target"] else "j" * info["target"])
             until(PLUGIN)
             send(" ")
-        send("\x1b")
+        if not name.startswith("shared-"):
+            send("\x1b")
         until("PROBE_DONE")
         assert "Plugin selection refused" not in observed
         return yaml.safe_load(config.read_text(encoding="utf-8"))["plugins"]
@@ -135,9 +147,12 @@ assert PLUGIN not in disabled["enabled"] and PLUGIN in disabled["disabled"], dis
 before = config.read_bytes()
 unchanged = drive("unchanged", False)
 assert config.read_bytes() == before
+drive("shared-confirm", False)
+drive("shared-cancel", False)
+assert config.read_bytes() == before
 result = {"platform": sys.platform, "python": sys.version, "interpreter": sys.executable,
           "head": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
           "enable": enabled, "disable": disabled, "unchanged": unchanged,
-          "scenarios_passed": 3}
+          "scenarios_passed": 5}
 (OUT / "picker-e2e.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
 print(json.dumps(result, indent=2))

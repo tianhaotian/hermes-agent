@@ -43,6 +43,11 @@ jobs:
           else
             exit "$result"
           fi
+      - name: Related menu and admission regressions
+        if: matrix.dependencies == 'fixed'
+        shell: bash
+        run: |
+          bash scripts/run_tests.sh tests/test_packaging_metadata.py tests/hermes_cli/test_plugins_picker_effective_state.py tests/hermes_cli/test_plugins_cmd_activation_keys.py tests/hermes_cli/test_terminal_menu_fallbacks.py -q
       - name: Real ConPTY plugin toggle and config persistence
         if: matrix.dependencies == 'fixed'
         shell: bash
