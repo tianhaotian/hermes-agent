@@ -38,6 +38,8 @@ print('PROBE ' + json.dumps({'target': target, 'total': total}), flush=True)
 cmd_toggle()
 print('PROBE_DONE', flush=True)
 """
+CHILD = OUT / "picker_child.py"
+CHILD.write_text(code, encoding="utf-8")
 
 
 class PosixTerminal:
@@ -67,7 +69,7 @@ class PosixTerminal:
 
 
 def drive(name, toggle):
-    args = [sys.executable, "-c", code]
+    args = [sys.executable, str(CHILD)]
     if os.name == "nt":
         from winpty import PtyProcess
         child = PtyProcess.spawn(subprocess.list2cmdline(args), cwd=str(ROOT), env=env,
