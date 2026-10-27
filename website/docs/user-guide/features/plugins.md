@@ -939,6 +939,15 @@ Plugins
 - **Provider Plugins section** — shows current selection. Press ENTER to drill into a radio picker where you choose one active provider.
 - Bundled plugins appear in the same list with a `[bundled]` tag.
 
+This screen requires a terminal and curses support. Managed Windows x64 installs
+include the curses backend. When curses is unavailable (including native Windows
+ARM64, for which the backend has no wheel), Hermes uses a numbered menu instead:
+enter a row number followed by ENTER to toggle a general plugin, then press ENTER
+on an empty line to save. The next prompt accepts a provider category number, or
+an empty ENTER to skip. This fallback does not use arrow keys, SPACE, or ESC.
+The non-interactive `hermes plugins enable`, `disable`, and `list` commands are
+also available.
+
 Provider plugin selections are saved to `config.yaml`:
 
 ```yaml
