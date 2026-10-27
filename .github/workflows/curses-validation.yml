@@ -14,11 +14,13 @@ jobs:
         dependencies: [base, fixed]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 4
       - name: Restore exact base dependency inputs for the red control
         if: matrix.dependencies == 'base'
         shell: pwsh
         run: |
-          python -c "import pathlib,subprocess; [(pathlib.Path(p).write_bytes(subprocess.check_output(['git','show','HEAD~1~1:'+p]))) for p in ['pyproject.toml','uv.lock']]"
+          python -c "import pathlib,subprocess; [(pathlib.Path(p).write_bytes(subprocess.check_output(['git','show','3f2b1722b1e15b12e9ca199a19cb04012493288a:'+p]))) for p in ['pyproject.toml','uv.lock']]"
       - name: Prepare locked Python and real test dependencies
         uses: ./.github/actions/setup-pm
         with:
