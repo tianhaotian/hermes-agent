@@ -1,0 +1,50 @@
+name: Native Windows curses validation
+on:
+  push:
+    branches: [validation/windows-curses-144124]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        dependencies: [base, fixed]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Restore exact base dependency inputs for the red control
+        if: matrix.dependencies == 'base'
+        shell: pwsh
+        run: |
+          python -c "import pathlib,subprocess; [(pathlib.Path(p).write_bytes(subprocess.check_output(['git','show','HEAD~1~1:'+p]))) for p in ['pyproject.toml','uv.lock']]"
+      - name: Prepare locked Python and real test dependencies
+        uses: ./.github/actions/setup-pm
+        with:
+          extras: '[]'
+          test-environment: 'true'
+          cache: 'false'
+          cache-python: 'false'
+          cache-node: 'false'
+      - name: Native Windows dependency regression
+        shell: bash
+        env:
+          CONTROL: ${{ matrix.dependencies }}
+        run: |
+          set +e
+          bash scripts/run_tests.sh tests/test_windows_curses_dependency.py -q > curses-tests.log 2>&1
+          result=$?
+          cat curses-tests.log
+          if [ "$CONTROL" = base ]; then
+            test "$result" = 1 && grep -q "No module named '_curses'" curses-tests.log
+          else
+            exit "$result"
+          fi
+      - name: Real ConPTY plugin toggle and config persistence
+        if: matrix.dependencies == 'fixed'
+        shell: bash
+        env:
+          CURSES_EVIDENCE: ${{ runner.temp }}/curses-evidence
+        run: |
+          "$HERMES_PYTHON" scripts/curses_validation_probe.py
